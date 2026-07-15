@@ -544,16 +544,18 @@ textarea{resize:vertical;min-height:60px;}
       <div class="field"><label>Họ tên *</label><input id="auFullName" placeholder="vd: Trần Văn A"></div>
       <div class="field"><label>Email (để nhận email nhắc việc quá hạn)</label><input id="auEmail" type="email" placeholder="vd: tran.van.a@cswind.com"></div>
       <div class="row2">
-        <div class="field"><label>Chức vụ *</label>
+        <div class="field"><label>Cấp bậc quản lý *</label>
           <select id="auRole">
             <option value="TGD">Tổng Giám đốc</option>
             <option value="PhoTGD">Phó Tổng Giám đốc</option>
             <option value="GiamDoc">Giám đốc</option>
             <option value="TruongPhong" selected>Trưởng phòng</option>
           </select>
+          <div style="font-size:10.5px;color:var(--ink-2);margin-top:4px;">Quyết định quyền hạn trong hệ thống. Nhân viên/công nhân không quản lý ai → chọn "Trưởng phòng", rồi ghi chức danh thật ở ô dưới.</div>
         </div>
         <div class="field"><label>Phòng ban</label><select id="auDept"></select></div>
       </div>
+      <div class="field"><label>Chức danh cụ thể (tuỳ chọn)</label><input id="auJobTitle" placeholder="vd: Công nhân lắp ráp, Tổ trưởng tổ hàn..."></div>
       <div class="field"><label>Báo cáo cho (quản lý trực tiếp)</label><select id="auReportsTo"><option value="">— Không (cấp cao nhất) —</option></select></div>
     </div>
     <div class="modal-foot">
@@ -575,7 +577,7 @@ textarea{resize:vertical;min-height:60px;}
       <div class="field"><label>Họ tên *</label><input id="euFullName"></div>
       <div class="field"><label>Email (để nhận email nhắc việc quá hạn)</label><input id="euEmail" type="email" placeholder="vd: tran.van.a@cswind.com"></div>
       <div class="row2">
-        <div class="field"><label>Chức vụ *</label>
+        <div class="field"><label>Cấp bậc quản lý *</label>
           <select id="euRole">
             <option value="TGD">Tổng Giám đốc</option>
             <option value="PhoTGD">Phó Tổng Giám đốc</option>
@@ -585,6 +587,7 @@ textarea{resize:vertical;min-height:60px;}
         </div>
         <div class="field"><label>Phòng ban</label><select id="euDept"></select></div>
       </div>
+      <div class="field"><label>Chức danh cụ thể (tuỳ chọn)</label><input id="euJobTitle" placeholder="vd: Công nhân lắp ráp, Tổ trưởng tổ hàn..."></div>
       <div class="field"><label>Báo cáo cho (quản lý trực tiếp)</label><select id="euReportsTo"></select></div>
       <div id="euWarning" class="err-box hidden"></div>
     </div>
@@ -625,9 +628,11 @@ textarea{resize:vertical;min-height:60px;}
       <div class="field"><label>Họ tên *</label><input id="aeFullName" placeholder="vd: Trần Văn A"></div>
       <div class="field"><label>Email (để nhận email nhắc việc quá hạn)</label><input id="aeEmail" type="email" placeholder="vd: tran.van.a@cswind.com"></div>
       <div class="row2">
-        <div class="field"><label>Chức vụ *</label><select id="aeRole"></select></div>
+        <div class="field"><label>Cấp bậc quản lý *</label><select id="aeRole"></select></div>
         <div class="field"><label>Phòng ban</label><select id="aeDept"></select></div>
       </div>
+      <div class="field"><label>Chức danh cụ thể (tuỳ chọn)</label><input id="aeJobTitle" placeholder="vd: Công nhân lắp ráp, Tổ trưởng tổ hàn, Nhân viên QC..."></div>
+      <div style="font-size:10.5px;color:var(--ink-2);margin-top:-10px;">Nhân viên không quản lý ai (công nhân, tổ trưởng...) → để "Cấp bậc quản lý" là Trưởng phòng, rồi ghi đúng chức danh thật ở ô trên.</div>
     </div>
     <div class="modal-foot">
       <button class="btn btn-ghost" onclick="closeModal('addEmployeeModal')">Huỷ</button>
@@ -874,7 +879,7 @@ async function startApp(){
   show('app');
   document.getElementById('uAvatar').textContent = initials(CURRENT_USER.FullName);
   document.getElementById('uName').textContent = CURRENT_USER.FullName;
-  document.getElementById('uRole').textContent = roleLabel(CURRENT_USER.Role) + (CURRENT_USER.Role === 'TGD' ? ' · Admin' : '');
+  document.getElementById('uRole').textContent = titleFor(CURRENT_USER) + (CURRENT_USER.Role === 'TGD' ? ' · Admin' : '');
   if (CURRENT_USER.Role === 'TruongPhong') document.getElementById('btnNewTask').classList.add('hidden');
   document.getElementById('btnUserMgmt').classList.toggle('hidden', CURRENT_USER.Role !== 'TGD');
   document.getElementById('btnMyEmployees').classList.toggle('hidden', CURRENT_USER.Role === 'TGD');
@@ -902,6 +907,11 @@ function initials(name){
 }
 function roleLabel(r){
   return {TGD:'Tổng Giám đốc', PhoTGD:'Phó Tổng Giám đốc', GiamDoc:'Giám đốc', TruongPhong:'Trưởng phòng'}[r] || r;
+}
+// Ưu tiên hiện "Chức danh cụ thể" (vd "Công nhân lắp ráp") nếu có, không thì hiện cấp bậc quản lý chung.
+function titleFor(u){
+  if (!u) return '';
+  return (u.JobTitle && u.JobTitle.trim()) ? u.JobTitle.trim() : roleLabel(u.Role);
 }
 
 // Chuẩn hoá Username trước khi so sánh — Google Sheet chỉnh tay rất dễ dính khoảng trắng thừa
@@ -1021,7 +1031,7 @@ function populatePersonFilter(){
   USERS.filter(u => scopeUsernames.includes(u.Username)).forEach(u => {
     const o = document.createElement('option');
     o.value = u.Username;
-    o.textContent = u.FullName + (sameUser(u.Username, CURRENT_USER.Username) ? ' (Tôi)' : '') + ' — ' + roleLabel(u.Role);
+    o.textContent = u.FullName + (sameUser(u.Username, CURRENT_USER.Username) ? ' (Tôi)' : '') + ' — ' + titleFor(u);
     sel.appendChild(o);
   });
 }
@@ -1351,7 +1361,7 @@ function updateAssigneeOptions(){
   const list = isSupport ? USERS.filter(u => u.Username !== CURRENT_USER.Username) : assignableUsers();
   list.forEach(u => {
     const o = document.createElement('option');
-    o.value = u.Username; o.textContent = u.FullName + ' — ' + roleLabel(u.Role);
+    o.value = u.Username; o.textContent = u.FullName + ' — ' + titleFor(u);
     sel.appendChild(o);
   });
   if (list.some(u => sameUser(u.Username, currentVal))) sel.value = currentVal;
@@ -1608,7 +1618,7 @@ function renderUserMgmtLists(){
     row.style.cursor = 'default';
     const isSelf = sameUser(u.Username, CURRENT_USER.Username);
     row.innerHTML = `
-      <div><div class="lg-title">${escapeHtml(u.FullName)} ${isSelf?'<span class="support-tag">Bạn</span>':''}</div><div class="lg-sub">${roleLabel(u.Role)} · ${escapeHtml(u.Department||'—')}${u.ReportsTo?(' · báo cáo: '+escapeHtml(nameFor(u.ReportsTo))):''}</div></div>
+      <div><div class="lg-title">${escapeHtml(u.FullName)} ${isSelf?'<span class="support-tag">Bạn</span>':''}</div><div class="lg-sub">${escapeHtml(titleFor(u))} · ${escapeHtml(u.Department||'—')}${u.ReportsTo?(' · báo cáo: '+escapeHtml(nameFor(u.ReportsTo))):''}</div></div>
       <div style="font-size:11px;color:var(--ink-2);">${taskCount} việc${reportCount?`, ${reportCount} cấp dưới`:''}</div>
       <div style="display:flex;gap:5px;justify-content:flex-end;"></div>`;
     const actionCell = row.lastElementChild;
@@ -1654,7 +1664,7 @@ function openAddUserForm(){
   const deptSel = document.getElementById('auDept');
   deptSel.innerHTML = DEPARTMENTS.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join('');
   const repSel = document.getElementById('auReportsTo');
-  repSel.innerHTML = '<option value="">— Không (cấp cao nhất) —</option>' + USERS.map(u => `<option value="${u.Username}">${escapeHtml(u.FullName)} — ${roleLabel(u.Role)}</option>`).join('');
+  repSel.innerHTML = '<option value="">— Không (cấp cao nhất) —</option>' + USERS.map(u => `<option value="${u.Username}">${escapeHtml(u.FullName)} — ${escapeHtml(titleFor(u))}</option>`).join('');
   document.getElementById('auUsername').value = '';
   document.getElementById('auPassword').value = '123456';
   document.getElementById('auFullName').value = '';
@@ -1670,6 +1680,7 @@ async function submitAddUser(){
     FullName: document.getElementById('auFullName').value.trim(),
     Email: document.getElementById('auEmail').value.trim(),
     Role: document.getElementById('auRole').value,
+    JobTitle: document.getElementById('auJobTitle').value.trim(),
     Department: document.getElementById('auDept').value,
     ReportsTo: document.getElementById('auReportsTo').value
   };
@@ -1692,6 +1703,7 @@ function openEditUserForm(username){
   document.getElementById('euFullName').value = u.FullName;
   document.getElementById('euEmail').value = u.Email || '';
   document.getElementById('euRole').value = u.Role;
+  document.getElementById('euJobTitle').value = u.JobTitle || '';
   const deptSel = document.getElementById('euDept');
   deptSel.innerHTML = DEPARTMENTS.map(dp => `<option value="${escapeHtml(dp)}">${escapeHtml(dp)}</option>`).join('');
   deptSel.value = u.Department || DEPARTMENTS[0];
@@ -1699,7 +1711,7 @@ function openEditUserForm(username){
   const excluded = new Set([username, ...getDescendants(username)]);
   const repSel = document.getElementById('euReportsTo');
   repSel.innerHTML = '<option value="">— Không (cấp cao nhất) —</option>' +
-    USERS.filter(x => !excluded.has(x.Username)).map(x => `<option value="${x.Username}">${escapeHtml(x.FullName)} — ${roleLabel(x.Role)}</option>`).join('');
+    USERS.filter(x => !excluded.has(x.Username)).map(x => `<option value="${x.Username}">${escapeHtml(x.FullName)} — ${escapeHtml(titleFor(x))}</option>`).join('');
   repSel.value = u.ReportsTo || '';
   document.getElementById('euWarning').classList.add('hidden');
   document.getElementById('editUserModal').dataset.username = username;
@@ -1712,6 +1724,7 @@ async function submitEditUser(){
   const fullName = document.getElementById('euFullName').value.trim();
   const email = document.getElementById('euEmail').value.trim();
   const role = document.getElementById('euRole').value;
+  const jobTitle = document.getElementById('euJobTitle').value.trim();
   const department = document.getElementById('euDept').value;
   const reportsTo = document.getElementById('euReportsTo').value;
   const password = document.getElementById('euPassword').value.trim();
@@ -1724,7 +1737,7 @@ async function submitEditUser(){
     return;
   }
   try{
-    await api('updateUser', {username, fullName, email, role, department, reportsTo, password});
+    await api('updateUser', {username, fullName, email, role, jobTitle, department, reportsTo, password});
     closeModal('editUserModal');
     renderUserMgmtLists();
     populateDeptFilter();
@@ -2058,7 +2071,7 @@ function renderMyEmployeesList(){
     row.style.gridTemplateColumns = '2fr 1fr 70px';
     row.style.cursor = 'default';
     row.innerHTML = `
-      <div><div class="lg-title">${escapeHtml(u.FullName)}</div><div class="lg-sub">${roleLabel(u.Role)} · ${escapeHtml(u.Department||'—')}</div></div>
+      <div><div class="lg-title">${escapeHtml(u.FullName)}</div><div class="lg-sub">${escapeHtml(titleFor(u))} · ${escapeHtml(u.Department||'—')}</div></div>
       <div style="font-size:11px;color:var(--ink-2);">${taskCount} việc${reportCount?`, ${reportCount} cấp dưới`:''}</div>
       <div></div>`;
     const btn = document.createElement('button');
@@ -2076,9 +2089,10 @@ function openAddEmployeeForm(){
   document.getElementById('aePassword').value = '123456';
   document.getElementById('aeFullName').value = '';
   document.getElementById('aeEmail').value = '';
+  document.getElementById('aeJobTitle').value = '';
   const roleSel = document.getElementById('aeRole');
+  // KHÔNG có lựa chọn "Tổng Giám đốc" ở đây — tự thêm nhân viên không được phép tự cấp quyền admin.
   roleSel.innerHTML = `
-    <option value="TGD">Tổng Giám đốc</option>
     <option value="PhoTGD">Phó Tổng Giám đốc</option>
     <option value="GiamDoc">Giám đốc</option>
     <option value="TruongPhong">Trưởng phòng</option>`;
@@ -2096,6 +2110,7 @@ async function submitAddEmployee(){
     FullName: document.getElementById('aeFullName').value.trim(),
     Email: document.getElementById('aeEmail').value.trim(),
     Role: document.getElementById('aeRole').value,
+    JobTitle: document.getElementById('aeJobTitle').value.trim(),
     Department: document.getElementById('aeDept').value
     // Không gửi ReportsTo — server tự gán = chính người đang tạo (requester), không tin theo client.
   };
