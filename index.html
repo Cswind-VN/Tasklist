@@ -419,15 +419,16 @@ textarea{resize:vertical;min-height:60px;}
       </div>
       <div class="field hidden" id="ntLinkTypeField">
         <label>Loại phân tầng</label>
-        <select id="ntLinkType">
-          <option value="Ho_tro">Nhờ hỗ trợ (cấp trên vẫn là người chịu trách nhiệm chính)</option>
-          <option value="Uy_quyen_mot_phan">Giao 1 phần việc (cấp dưới phụ trách phần này)</option>
+        <select id="ntLinkType" onchange="updateAssigneeOptions()">
+          <option value="Ho_tro">Nhờ hỗ trợ (cấp trên vẫn là người chịu trách nhiệm chính — có thể nhờ bất kỳ ai)</option>
+          <option value="Uy_quyen_mot_phan">Giao 1 phần việc (chỉ giao được cho cấp dưới của mình)</option>
         </select>
       </div>
       <div class="row2">
         <div class="field"><label>Người giao việc</label><input id="ntAssigner" disabled style="background:#f0f2f6;font-weight:700;color:var(--navy);"></div>
         <div class="field"><label>Giao cho *</label><select id="ntAssignee"></select></div>
       </div>
+      <div id="ntAssigneeHint" class="hidden" style="font-size:11px;color:var(--ink-2);margin:-8px 0 14px;">Đang nhờ hỗ trợ — có thể chọn bất kỳ ai trong công ty, không chỉ cấp dưới của bạn.</div>
       <div class="field"><label>Tiêu đề công việc *</label><input id="ntTitle" placeholder="vd: Hoàn thiện báo cáo NCR quý 3"></div>
       <div class="field"><label>Mô tả chi tiết</label><textarea id="ntDesc" placeholder="Yêu cầu, phạm vi, tiêu chí hoàn thành..."></textarea></div>
       <div class="row2">
@@ -1264,13 +1265,6 @@ function buildCascadeNode(t, scoped, depth, sttLabel){
    ============================================================ */
 function openNewTask(parentTaskId){
   document.getElementById('ntAssigner').value = CURRENT_USER.FullName + ' — ' + roleLabel(CURRENT_USER.Role);
-  const sel = document.getElementById('ntAssignee');
-  sel.innerHTML = '';
-  assignableUsers().forEach(u => {
-    const o = document.createElement('option');
-    o.value = u.Username; o.textContent = u.FullName + ' — ' + roleLabel(u.Role);
-    sel.appendChild(o);
-  });
   document.getElementById('newTaskModal').dataset.parentTaskId = parentTaskId || '';
   const parentTask = parentTaskId ? TASKS.find(x => x.TaskID === parentTaskId) : null;
   document.getElementById('ntParentBanner').classList.toggle('hidden', !parentTask);
@@ -1278,6 +1272,8 @@ function openNewTask(parentTaskId){
   document.getElementById('ntModalTitle').textContent = parentTask ? 'Giao công việc nhánh / Nhờ hỗ trợ' : 'Giao việc mới';
   document.getElementById('ntSubmitBtn').textContent = parentTask ? 'Giao công việc nhánh' : 'Giao việc';
   if (parentTask) document.getElementById('ntParentTitleShow').textContent = parentTask.Title;
+  document.getElementById('ntLinkType').value = 'Ho_tro';
+  updateAssigneeOptions();
   document.getElementById('ntTitle').value = '';
   document.getElementById('ntDesc').value = '';
   const deptSel = document.getElementById('ntDept');
@@ -1291,6 +1287,25 @@ function openNewTask(parentTaskId){
   document.getElementById('ntPriority').value = parentTask ? parentTask.Priority : 'Trung bình';
   document.getElementById('ntNotes').value = '';
   document.getElementById('newTaskModal').classList.remove('hidden');
+}
+
+// Nhờ hỗ trợ (Ho_tro) và giao việc mới (không phải công việc nhánh) → chọn được bất kỳ ai trong công ty.
+// Uỷ quyền một phần (Uy_quyen_mot_phan) → chỉ chọn được trong phạm vi cấp dưới của mình (đúng chuỗi quản lý).
+function updateAssigneeOptions(){
+  const parentTaskId = document.getElementById('newTaskModal').dataset.parentTaskId || '';
+  const linkType = document.getElementById('ntLinkType').value;
+  const isSupport = !!parentTaskId && linkType === 'Ho_tro';
+  const currentVal = document.getElementById('ntAssignee').value;
+  const sel = document.getElementById('ntAssignee');
+  sel.innerHTML = '';
+  const list = isSupport ? USERS.filter(u => u.Username !== CURRENT_USER.Username) : assignableUsers();
+  list.forEach(u => {
+    const o = document.createElement('option');
+    o.value = u.Username; o.textContent = u.FullName + ' — ' + roleLabel(u.Role);
+    sel.appendChild(o);
+  });
+  if (list.some(u => u.Username === currentVal)) sel.value = currentVal;
+  document.getElementById('ntAssigneeHint').classList.toggle('hidden', !isSupport);
 }
 
 async function submitNewTask(){
