@@ -337,7 +337,6 @@ textarea{resize:vertical;min-height:60px;}
     <div class="right">
       <button class="icon-btn" id="btnCalendar" onclick="openCalendar()">📅 Lịch</button>
       <button class="icon-btn hidden" id="btnUserMgmt" onclick="openUserMgmt()">⚙ Quản lý người dùng</button>
-      <button class="icon-btn hidden" id="btnMyTeam" onclick="openMyTeam()">👥 Cấp dưới của tôi</button>
       <button class="icon-btn hidden" id="shareBtn" onclick="showSetup(true)">Chia sẻ liên kết</button>
       <div class="user-badge">
         <div class="avatar" id="uAvatar">--</div>
@@ -596,20 +595,6 @@ textarea{resize:vertical;min-height:60px;}
   </div>
 </div>
 
-<!-- ============ MY TEAM MODAL (tự chọn cấp dưới của mình) ============ -->
-<div id="myTeamModal" class="overlay hidden">
-  <div class="modal" style="width:640px;">
-    <div class="modal-head"><h2>👥 Cấp dưới của tôi</h2><button class="x-btn" onclick="closeModal('myTeamModal')">✕</button></div>
-    <div class="modal-body">
-      <div style="font-size:11.5px;color:var(--ink-2);margin-bottom:14px;">Chọn những người báo cáo trực tiếp cho bạn. Việc này quyết định bạn xem/giao việc được cho ai (tối đa 2 cấp dưới liên tiếp).</div>
-      <div id="myTeamList"></div>
-    </div>
-    <div class="modal-foot">
-      <button class="btn btn-ghost" onclick="closeModal('myTeamModal')">Đóng</button>
-    </div>
-  </div>
-</div>
-
 <!-- ============ CALENDAR MODAL (full page) ============ -->
 <div id="calendarModal" class="overlay hidden">
   <div class="modal" style="width:96vw;max-width:1500px;height:92vh;max-height:92vh;display:flex;flex-direction:column;overflow:hidden;">
@@ -851,7 +836,6 @@ async function startApp(){
   document.getElementById('uRole').textContent = roleLabel(CURRENT_USER.Role) + (CURRENT_USER.Role === 'TGD' ? ' · Admin' : '');
   if (CURRENT_USER.Role === 'TruongPhong') document.getElementById('btnNewTask').classList.add('hidden');
   document.getElementById('btnUserMgmt').classList.toggle('hidden', CURRENT_USER.Role !== 'TGD');
-  document.getElementById('btnMyTeam').classList.toggle('hidden', CURRENT_USER.Role === 'TGD');
   document.getElementById('shareBtn').classList.toggle('hidden', CURRENT_USER.Role !== 'TGD');
 
   try{
@@ -932,9 +916,9 @@ function isTaskVisible(t){
 }
 
 function assignableUsers(){
-  if (CURRENT_USER.Role === 'TGD') return USERS.filter(u => u.Username !== CURRENT_USER.Username);
+  if (CURRENT_USER.Role === 'TGD') return USERS; // TGĐ giao được cho bất kỳ ai, kể cả chính mình
   const desc = getDescendantsLimited(CURRENT_USER.Username, VISIBILITY_DEPTH);
-  return USERS.filter(u => desc.includes(u.Username));
+  return USERS.filter(u => u.Username === CURRENT_USER.Username || desc.includes(u.Username));
 }
 
 /* ============================================================
@@ -1931,77 +1915,9 @@ async function deleteEventItem(){
 }
 
 /* ============================================================
-   CẤP DƯỚI CỦA TÔI (mỗi người tự chọn ai báo cáo cho mình)
+   (Đã bỏ tính năng "Cấp dưới của tôi" tự phục vụ — việc thiết lập ai báo
+   cáo cho ai giờ chỉ TGĐ được làm, qua "Quản lý người dùng > Sửa".)
    ============================================================ */
-function openMyTeam(){
-  renderMyTeamList();
-  document.getElementById('myTeamModal').classList.remove('hidden');
-}
-
-function renderMyTeamList(){
-  const host = document.getElementById('myTeamList');
-  host.innerHTML = '';
-  const myAncestorsAndSelf = new Set([CURRENT_USER.Username, ...getDescendants(CURRENT_USER.Username)]);
-  // (getDescendants ở đây dùng để loại các người đang là cấp dưới sâu của mình ra khỏi việc tự nhận —
-  //  không liên quan tới bản thân "myAncestorsAndSelf" là cấp dưới, mà là để tránh vòng lặp khi nhận
-  //  người mà nhận vào sẽ tạo vòng — xem kiểm tra bên dưới bằng getDescendants(target).)
-  USERS.filter(u => u.Username !== CURRENT_USER.Username).forEach(u => {
-    const isMine = u.ReportsTo === CURRENT_USER.Username;
-    const wouldCycle = getDescendants(u.Username).includes(CURRENT_USER.Username); // u đang là cấp trên (trực/gián tiếp) của tôi
-    const row = document.createElement('div');
-    row.className = 'lg-row';
-    row.style.gridTemplateColumns = '2fr 1fr 140px';
-    row.style.cursor = 'default';
-    row.innerHTML = `
-      <div><div class="lg-title">${escapeHtml(u.FullName)}</div><div class="lg-sub">${roleLabel(u.Role)} · ${escapeHtml(u.Department||'—')}</div></div>
-      <div style="font-size:11px;color:var(--ink-2);">${u.ReportsTo ? ('báo cáo: '+escapeHtml(nameFor(u.ReportsTo))) : 'chưa có quản lý'}</div>
-      <div></div>`;
-    const cell = row.lastElementChild;
-    if (isMine){
-      const btn = document.createElement('button');
-      btn.className = 'btn btn-ghost btn-sm';
-      btn.style.color = 'var(--red)';
-      btn.textContent = 'Bỏ khỏi danh sách';
-      btn.onclick = () => releaseSubordinate(u.Username);
-      cell.appendChild(btn);
-    } else if (wouldCycle){
-      const span = document.createElement('span');
-      span.style.fontSize = '10.5px'; span.style.color = 'var(--ink-2)';
-      span.textContent = 'Là cấp trên của bạn';
-      cell.appendChild(span);
-    } else {
-      const btn = document.createElement('button');
-      btn.className = 'btn btn-primary btn-sm';
-      btn.textContent = '+ Nhận làm cấp dưới';
-      btn.onclick = () => claimSubordinate(u.Username);
-      cell.appendChild(btn);
-    }
-    host.appendChild(row);
-  });
-}
-
-async function claimSubordinate(username){
-  try{
-    await api('claimSubordinate', {username});
-    const u = USERS.find(x => x.Username === username);
-    if (u) u.ReportsTo = CURRENT_USER.Username;
-    renderMyTeamList();
-    populatePersonFilter();
-    renderAll();
-  }catch(e){ alert('Lỗi: ' + e.message); }
-}
-
-async function releaseSubordinate(username){
-  if (!confirm('Bỏ người này khỏi danh sách cấp dưới của bạn?')) return;
-  try{
-    await api('releaseSubordinate', {username});
-    const u = USERS.find(x => x.Username === username);
-    if (u) u.ReportsTo = '';
-    renderMyTeamList();
-    populatePersonFilter();
-    renderAll();
-  }catch(e){ alert('Lỗi: ' + e.message); }
-}
 
 async function sendTestReminder(){
   if (!confirm('Gửi thử email nhắc việc ngay bây giờ? Sẽ gửi thật tới những người đang có việc sắp/đến/quá hạn (nếu có).')) return;
