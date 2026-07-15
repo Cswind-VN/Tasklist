@@ -555,7 +555,7 @@ textarea{resize:vertical;min-height:60px;}
         </div>
         <div class="field"><label>Phòng ban</label><select id="auDept"></select></div>
       </div>
-      <div class="field"><label>Chức danh cụ thể (tuỳ chọn)</label><input id="auJobTitle" placeholder="vd: Công nhân lắp ráp, Tổ trưởng tổ hàn..."></div>
+      <div class="field"><label>Chức danh cụ thể (tuỳ chọn)</label><input id="auJobTitle" list="jobTitleSuggestions" placeholder="Chọn nhanh hoặc tự gõ — vd: Công nhân lắp ráp"></div>
       <div class="field"><label>Báo cáo cho (quản lý trực tiếp)</label><select id="auReportsTo"><option value="">— Không (cấp cao nhất) —</option></select></div>
     </div>
     <div class="modal-foot">
@@ -587,7 +587,7 @@ textarea{resize:vertical;min-height:60px;}
         </div>
         <div class="field"><label>Phòng ban</label><select id="euDept"></select></div>
       </div>
-      <div class="field"><label>Chức danh cụ thể (tuỳ chọn)</label><input id="euJobTitle" placeholder="vd: Công nhân lắp ráp, Tổ trưởng tổ hàn..."></div>
+      <div class="field"><label>Chức danh cụ thể (tuỳ chọn)</label><input id="euJobTitle" list="jobTitleSuggestions" placeholder="Chọn nhanh hoặc tự gõ — vd: Công nhân lắp ráp"></div>
       <div class="field"><label>Báo cáo cho (quản lý trực tiếp)</label><select id="euReportsTo"></select></div>
       <div id="euWarning" class="err-box hidden"></div>
     </div>
@@ -631,7 +631,7 @@ textarea{resize:vertical;min-height:60px;}
         <div class="field"><label>Cấp bậc quản lý *</label><select id="aeRole"></select></div>
         <div class="field"><label>Phòng ban</label><select id="aeDept"></select></div>
       </div>
-      <div class="field"><label>Chức danh cụ thể (tuỳ chọn)</label><input id="aeJobTitle" placeholder="vd: Công nhân lắp ráp, Tổ trưởng tổ hàn, Nhân viên QC..."></div>
+      <div class="field"><label>Chức danh cụ thể (tuỳ chọn)</label><input id="aeJobTitle" list="jobTitleSuggestions" placeholder="Chọn nhanh hoặc tự gõ — vd: Công nhân lắp ráp"></div>
       <div style="font-size:10.5px;color:var(--ink-2);margin-top:-10px;">Nhân viên không quản lý ai (công nhân, tổ trưởng...) → để "Cấp bậc quản lý" là Trưởng phòng, rồi ghi đúng chức danh thật ở ô trên.</div>
     </div>
     <div class="modal-foot">
@@ -2161,5 +2161,19 @@ function escapeHtml(s){
   return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 </script>
+
+<!-- Gợi ý chức danh phổ biến — dùng chung cho các ô "Chức danh cụ thể", vẫn gõ tự do được nếu không có trong danh sách -->
+<datalist id="jobTitleSuggestions">
+  <option value="Công nhân">
+  <option value="Tổ trưởng">
+  <option value="Nhân viên">
+  <option value="Chuyên viên">
+  <option value="Kỹ thuật viên">
+  <option value="Thủ kho">
+  <option value="Lái xe / Tài xế">
+  <option value="Bảo vệ">
+  <option value="Thư ký / Hành chính">
+  <option value="Quản đốc">
+</datalist>
 </body>
 </html>
