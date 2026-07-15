@@ -916,9 +916,17 @@ function isTaskVisible(t){
 }
 
 function assignableUsers(){
-  if (CURRENT_USER.Role === 'TGD') return USERS; // TGĐ giao được cho bất kỳ ai, kể cả chính mình
-  const desc = getDescendantsLimited(CURRENT_USER.Username, VISIBILITY_DEPTH);
-  return USERS.filter(u => u.Username === CURRENT_USER.Username || desc.includes(u.Username));
+  // Chính mình luôn được phép chọn (để tự giao việc cho bản thân), nhưng đặt ở CUỐI danh sách
+  // để ô "Giao cho" không mặc định chọn nhầm chính mình khi mở form — vẫn chọn tay được nếu cần.
+  let others, self;
+  if (CURRENT_USER.Role === 'TGD') {
+    others = USERS.filter(u => u.Username !== CURRENT_USER.Username);
+  } else {
+    const desc = getDescendantsLimited(CURRENT_USER.Username, VISIBILITY_DEPTH);
+    others = USERS.filter(u => desc.includes(u.Username));
+  }
+  self = USERS.find(u => u.Username === CURRENT_USER.Username);
+  return self ? [...others, self] : others;
 }
 
 /* ============================================================
