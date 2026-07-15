@@ -620,19 +620,17 @@ textarea{resize:vertical;min-height:60px;}
   <div class="modal">
     <div class="modal-head"><h2>Thêm nhân viên mới</h2><button class="x-btn" onclick="closeModal('addEmployeeModal')">✕</button></div>
     <div class="modal-body">
-      <div style="font-size:11.5px;color:var(--ink-2);margin-bottom:14px;">Nhân viên này sẽ tự động báo cáo cho bạn — không cần chọn "Báo cáo cho".</div>
+      <div style="font-size:11.5px;color:var(--ink-2);margin-bottom:14px;">Nhân viên này sẽ tự động báo cáo cho bạn — không cần chọn "Báo cáo cho". Dành cho người không quản lý ai (công nhân, tổ trưởng, nhân viên...). Muốn thêm 1 cấp quản lý mới (Phó TGĐ/Giám đốc/Trưởng phòng), nhờ TGĐ thêm qua "⚙ Quản lý người dùng".</div>
       <div class="row2">
         <div class="field"><label>Username *</label><input id="aeUsername" placeholder="vd: tran.van.a"></div>
         <div class="field"><label>Mật khẩu</label><input id="aePassword" value="123456"></div>
       </div>
       <div class="field"><label>Họ tên *</label><input id="aeFullName" placeholder="vd: Trần Văn A"></div>
-      <div class="field"><label>Email (để nhận email nhắc việc quá hạn)</label><input id="aeEmail" type="email" placeholder="vd: tran.van.a@cswind.com"></div>
       <div class="row2">
-        <div class="field"><label>Cấp bậc quản lý *</label><select id="aeRole"></select></div>
+        <div class="field"><label>Chức danh</label><input id="aeJobTitle" list="jobTitleSuggestions" placeholder="Chọn nhanh hoặc tự gõ — vd: Công nhân lắp ráp"></div>
         <div class="field"><label>Phòng ban</label><select id="aeDept"></select></div>
       </div>
-      <div class="field"><label>Chức danh cụ thể (tuỳ chọn)</label><input id="aeJobTitle" list="jobTitleSuggestions" placeholder="Chọn nhanh hoặc tự gõ — vd: Công nhân lắp ráp"></div>
-      <div style="font-size:10.5px;color:var(--ink-2);margin-top:-10px;">Nhân viên không quản lý ai (công nhân, tổ trưởng...) → để "Cấp bậc quản lý" là Trưởng phòng, rồi ghi đúng chức danh thật ở ô trên.</div>
+      <div class="field"><label>Email (để nhận email nhắc việc quá hạn)</label><input id="aeEmail" type="email" placeholder="vd: tran.van.a@cswind.com"></div>
     </div>
     <div class="modal-foot">
       <button class="btn btn-ghost" onclick="closeModal('addEmployeeModal')">Huỷ</button>
@@ -2061,7 +2059,7 @@ async function loadEmailLog(){
 /* ============================================================
    NHÂN VIÊN CỦA TÔI (mỗi người tự thêm/xoá nhân viên trực tiếp của mình)
    ============================================================ */
-const NEXT_ROLE_DOWN = {TGD:'PhoTGD', PhoTGD:'GiamDoc', GiamDoc:'TruongPhong', TruongPhong:'TruongPhong'};
+const NEXT_ROLE_DOWN = {TGD:'PhoTGD', PhoTGD:'GiamDoc', GiamDoc:'TruongPhong', TruongPhong:'TruongPhong'}; // (không còn dùng để chọn Role khi Thêm nhân viên nữa — luôn cố định TruongPhong — giữ lại phòng khi cần)
 
 function openMyEmployees(){
   renderMyEmployeesList();
@@ -2100,13 +2098,6 @@ function openAddEmployeeForm(){
   document.getElementById('aeFullName').value = '';
   document.getElementById('aeEmail').value = '';
   document.getElementById('aeJobTitle').value = '';
-  const roleSel = document.getElementById('aeRole');
-  // KHÔNG có lựa chọn "Tổng Giám đốc" ở đây — tự thêm nhân viên không được phép tự cấp quyền admin.
-  roleSel.innerHTML = `
-    <option value="PhoTGD">Phó Tổng Giám đốc</option>
-    <option value="GiamDoc">Giám đốc</option>
-    <option value="TruongPhong">Trưởng phòng</option>`;
-  roleSel.value = NEXT_ROLE_DOWN[CURRENT_USER.Role] || 'TruongPhong';
   const deptSel = document.getElementById('aeDept');
   deptSel.innerHTML = DEPARTMENTS.map(dp => `<option value="${escapeHtml(dp)}">${escapeHtml(dp)}</option>`).join('');
   deptSel.value = CURRENT_USER.Department || DEPARTMENTS[0];
@@ -2119,7 +2110,7 @@ async function submitAddEmployee(){
     Password: document.getElementById('aePassword').value.trim() || '123456',
     FullName: document.getElementById('aeFullName').value.trim(),
     Email: document.getElementById('aeEmail').value.trim(),
-    Role: document.getElementById('aeRole').value,
+    Role: 'TruongPhong', // tự thêm nhân viên = luôn ở cấp thấp nhất, không quản lý ai; muốn thêm 1 cấp quản lý mới phải qua TGĐ
     JobTitle: document.getElementById('aeJobTitle').value.trim(),
     Department: document.getElementById('aeDept').value
     // Không gửi ReportsTo — server tự gán = chính người đang tạo (requester), không tin theo client.
