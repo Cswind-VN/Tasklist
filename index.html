@@ -323,7 +323,6 @@ textarea{resize:vertical;min-height:60px;}
     <div class="field"><label>Tên đăng nhập</label><input id="loginUser" placeholder="vd: nguyen.van.a"></div>
     <div class="field"><label>Mật khẩu</label><input id="loginPass" type="password" placeholder="••••••••"></div>
     <button class="btn btn-primary btn-full" onclick="doLogin()">Đăng nhập</button>
-    <div class="hint-link"><a onclick="showSetup()">Cấu hình lại kết nối hệ thống</a></div>
   </div>
 </div>
 
@@ -337,6 +336,7 @@ textarea{resize:vertical;min-height:60px;}
     <div class="right">
       <button class="icon-btn" id="btnCalendar" onclick="openCalendar()">📅 Lịch</button>
       <button class="icon-btn hidden" id="btnUserMgmt" onclick="openUserMgmt()">⚙ Quản lý người dùng</button>
+      <button class="icon-btn hidden" id="btnMyEmployees" onclick="openMyEmployees()">👤 Nhân viên của tôi</button>
       <button class="icon-btn hidden" id="shareBtn" onclick="showSetup(true)">Chia sẻ liên kết</button>
       <div class="user-badge">
         <div class="avatar" id="uAvatar">--</div>
@@ -595,6 +595,47 @@ textarea{resize:vertical;min-height:60px;}
   </div>
 </div>
 
+<!-- ============ MY EMPLOYEES MODAL (tự thêm/xoá nhân viên trực tiếp của mình) ============ -->
+<div id="myEmployeesModal" class="overlay hidden">
+  <div class="modal" style="width:640px;">
+    <div class="modal-head"><h2>👤 Nhân viên của tôi</h2><button class="x-btn" onclick="closeModal('myEmployeesModal')">✕</button></div>
+    <div class="modal-body">
+      <div style="font-size:11.5px;color:var(--ink-2);margin-bottom:14px;">Danh sách người báo cáo trực tiếp cho bạn. Bạn tự thêm/xoá được tài khoản của nhân viên mình — không đụng được tới người của cấp khác. Muốn đổi cấp trên/cấp bậc của người đã có sẵn, cần nhờ TGĐ (⚙ Quản lý người dùng).</div>
+      <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
+        <button class="btn btn-primary btn-sm" onclick="openAddEmployeeForm()">+ Thêm nhân viên</button>
+      </div>
+      <div id="myEmployeesList"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('myEmployeesModal')">Đóng</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ ADD EMPLOYEE MODAL ============ -->
+<div id="addEmployeeModal" class="overlay hidden">
+  <div class="modal">
+    <div class="modal-head"><h2>Thêm nhân viên mới</h2><button class="x-btn" onclick="closeModal('addEmployeeModal')">✕</button></div>
+    <div class="modal-body">
+      <div style="font-size:11.5px;color:var(--ink-2);margin-bottom:14px;">Nhân viên này sẽ tự động báo cáo cho bạn — không cần chọn "Báo cáo cho".</div>
+      <div class="row2">
+        <div class="field"><label>Username *</label><input id="aeUsername" placeholder="vd: tran.van.a"></div>
+        <div class="field"><label>Mật khẩu</label><input id="aePassword" value="123456"></div>
+      </div>
+      <div class="field"><label>Họ tên *</label><input id="aeFullName" placeholder="vd: Trần Văn A"></div>
+      <div class="field"><label>Email (để nhận email nhắc việc quá hạn)</label><input id="aeEmail" type="email" placeholder="vd: tran.van.a@cswind.com"></div>
+      <div class="row2">
+        <div class="field"><label>Chức vụ *</label><select id="aeRole"></select></div>
+        <div class="field"><label>Phòng ban</label><select id="aeDept"></select></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('addEmployeeModal')">Huỷ</button>
+      <button class="btn btn-primary" onclick="submitAddEmployee()">Thêm nhân viên</button>
+    </div>
+  </div>
+</div>
+
 <!-- ============ CALENDAR MODAL (full page) ============ -->
 <div id="calendarModal" class="overlay hidden">
   <div class="modal" style="width:96vw;max-width:1500px;height:92vh;max-height:92vh;display:flex;flex-direction:column;overflow:hidden;">
@@ -836,6 +877,7 @@ async function startApp(){
   document.getElementById('uRole').textContent = roleLabel(CURRENT_USER.Role) + (CURRENT_USER.Role === 'TGD' ? ' · Admin' : '');
   if (CURRENT_USER.Role === 'TruongPhong') document.getElementById('btnNewTask').classList.add('hidden');
   document.getElementById('btnUserMgmt').classList.toggle('hidden', CURRENT_USER.Role !== 'TGD');
+  document.getElementById('btnMyEmployees').classList.toggle('hidden', CURRENT_USER.Role === 'TGD');
   document.getElementById('shareBtn').classList.toggle('hidden', CURRENT_USER.Role !== 'TGD');
 
   try{
@@ -1991,6 +2033,98 @@ async function loadEmailLog(){
       host.appendChild(r);
     });
   }catch(e){ host.innerHTML = '<div style="font-size:12px;color:var(--red);">Lỗi tải lịch sử: '+e.message+'</div>'; }
+}
+
+/* ============================================================
+   NHÂN VIÊN CỦA TÔI (mỗi người tự thêm/xoá nhân viên trực tiếp của mình)
+   ============================================================ */
+const NEXT_ROLE_DOWN = {TGD:'PhoTGD', PhoTGD:'GiamDoc', GiamDoc:'TruongPhong', TruongPhong:'TruongPhong'};
+
+function openMyEmployees(){
+  renderMyEmployeesList();
+  document.getElementById('myEmployeesModal').classList.remove('hidden');
+}
+
+function renderMyEmployeesList(){
+  const host = document.getElementById('myEmployeesList');
+  host.innerHTML = '';
+  const mine = USERS.filter(u => sameUser(u.ReportsTo, CURRENT_USER.Username));
+  if (!mine.length) { host.innerHTML = '<div style="font-size:12px;color:var(--ink-2);padding:10px 0;">Chưa có nhân viên nào báo cáo trực tiếp cho bạn.</div>'; return; }
+  mine.forEach(u => {
+    const taskCount = TASKS.filter(t => sameUser(t.AssignerUsername, u.Username) || sameUser(t.AssigneeUsername, u.Username)).length;
+    const reportCount = USERS.filter(x => sameUser(x.ReportsTo, u.Username)).length;
+    const row = document.createElement('div');
+    row.className = 'lg-row';
+    row.style.gridTemplateColumns = '2fr 1fr 70px';
+    row.style.cursor = 'default';
+    row.innerHTML = `
+      <div><div class="lg-title">${escapeHtml(u.FullName)}</div><div class="lg-sub">${roleLabel(u.Role)} · ${escapeHtml(u.Department||'—')}</div></div>
+      <div style="font-size:11px;color:var(--ink-2);">${taskCount} việc${reportCount?`, ${reportCount} cấp dưới`:''}</div>
+      <div></div>`;
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-ghost btn-sm';
+    btn.style.color = 'var(--red)';
+    btn.textContent = 'Xoá';
+    btn.onclick = () => deleteMyEmployee(u.Username, u.FullName, taskCount, reportCount);
+    row.lastElementChild.appendChild(btn);
+    host.appendChild(row);
+  });
+}
+
+function openAddEmployeeForm(){
+  document.getElementById('aeUsername').value = '';
+  document.getElementById('aePassword').value = '123456';
+  document.getElementById('aeFullName').value = '';
+  document.getElementById('aeEmail').value = '';
+  const roleSel = document.getElementById('aeRole');
+  roleSel.innerHTML = `
+    <option value="TGD">Tổng Giám đốc</option>
+    <option value="PhoTGD">Phó Tổng Giám đốc</option>
+    <option value="GiamDoc">Giám đốc</option>
+    <option value="TruongPhong">Trưởng phòng</option>`;
+  roleSel.value = NEXT_ROLE_DOWN[CURRENT_USER.Role] || 'TruongPhong';
+  const deptSel = document.getElementById('aeDept');
+  deptSel.innerHTML = DEPARTMENTS.map(dp => `<option value="${escapeHtml(dp)}">${escapeHtml(dp)}</option>`).join('');
+  deptSel.value = CURRENT_USER.Department || DEPARTMENTS[0];
+  document.getElementById('addEmployeeModal').classList.remove('hidden');
+}
+
+async function submitAddEmployee(){
+  const user = {
+    Username: document.getElementById('aeUsername').value.trim(),
+    Password: document.getElementById('aePassword').value.trim() || '123456',
+    FullName: document.getElementById('aeFullName').value.trim(),
+    Email: document.getElementById('aeEmail').value.trim(),
+    Role: document.getElementById('aeRole').value,
+    Department: document.getElementById('aeDept').value
+    // Không gửi ReportsTo — server tự gán = chính người đang tạo (requester), không tin theo client.
+  };
+  if (!user.Username || !user.FullName) { alert('Vui lòng nhập Username và Họ tên'); return; }
+  try{
+    await api('createMyEmployee', {user});
+    closeModal('addEmployeeModal');
+    await loadData();
+    renderMyEmployeesList();
+    populateDeptFilter();
+    populatePersonFilter();
+    renderAll();
+  }catch(e){ alert('Lỗi thêm nhân viên: '+e.message); }
+}
+
+async function deleteMyEmployee(username, fullName, taskCount, reportCount){
+  let msg = `Xoá nhân viên "${fullName}"?`;
+  if (taskCount || reportCount) {
+    msg += `\n\nCảnh báo: người này đang liên quan ${taskCount} công việc${reportCount?` và có ${reportCount} cấp dưới báo cáo trực tiếp`:''}. Công việc cũ vẫn giữ nguyên nhưng hiển thị tên cũ; cấp dưới của họ sẽ tạm mất quản lý trực tiếp.`;
+  }
+  if (!confirm(msg)) return;
+  try{
+    await api('deleteMyEmployee', {username});
+    await loadData();
+    renderMyEmployeesList();
+    populateDeptFilter();
+    populatePersonFilter();
+    renderAll();
+  }catch(e){ alert('Lỗi xoá nhân viên: '+e.message); }
 }
 
 function closeModal(id){ document.getElementById(id).classList.add('hidden'); }
