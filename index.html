@@ -354,12 +354,12 @@ textarea{resize:vertical;min-height:60px;}
   </div>
 
   <div class="toolbar">
-    <select id="fScope" onchange="renderAll()">
+    <select id="fScope" onchange="document.getElementById('fPerson').value=''; renderAll();">
       <option value="all">Tất cả tôi thấy được</option>
       <option value="assigned_by_me">Tôi giao</option>
       <option value="assigned_to_me">Tôi nhận</option>
     </select>
-    <select id="fPerson" onchange="renderAll()"><option value="">Tất cả mọi người</option></select>
+    <select id="fPerson" onchange="document.getElementById('fScope').value='all'; renderAll();"><option value="">Tất cả mọi người</option></select>
     <select id="fDept" onchange="renderAll()"><option value="">Tất cả phòng ban</option></select>
     <select id="fStatus" onchange="renderAll()">
       <option value="">Tất cả trạng thái</option>
@@ -425,7 +425,7 @@ textarea{resize:vertical;min-height:60px;}
       </div>
       <div class="row2">
         <div class="field"><label>Người giao việc</label><input id="ntAssigner" disabled style="background:#f0f2f6;font-weight:700;color:var(--navy);"></div>
-        <div class="field"><label>Giao cho *</label><select id="ntAssignee"></select></div>
+        <div class="field"><label>Giao cho *</label><select id="ntAssignee" onchange="onAssigneeChangeSyncDept()"></select></div>
       </div>
       <div id="ntAssigneeHint" class="hidden" style="font-size:11px;color:var(--ink-2);margin:-8px 0 14px;">Đang nhờ hỗ trợ — có thể chọn bất kỳ ai trong công ty, không chỉ cấp dưới của bạn.</div>
       <div class="field"><label>Tiêu đề công việc *</label><input id="ntTitle" placeholder="vd: Hoàn thiện báo cáo NCR quý 3"></div>
@@ -932,9 +932,14 @@ function filteredTasks(){
   const status = document.getElementById('fStatus').value;
   const search = document.getElementById('fSearch').value.trim().toLowerCase();
 
-  if (scope === 'assigned_by_me') list = list.filter(t => t.AssignerUsername === CURRENT_USER.Username);
-  if (scope === 'assigned_to_me') list = list.filter(t => t.AssigneeUsername === CURRENT_USER.Username);
-  if (person) list = list.filter(t => t.AssignerUsername === person || t.AssigneeUsername === person);
+  if (person) {
+    // Chọn 1 người cụ thể → ưu tiên hơn "Tôi giao/Tôi nhận", hiện toàn bộ việc của người đó
+    // (cả việc họ giao lẫn việc họ nhận), tránh cộng dồn 2 bộ lọc gây rỗng kết quả vô lý.
+    list = list.filter(t => t.AssignerUsername === person || t.AssigneeUsername === person);
+  } else {
+    if (scope === 'assigned_by_me') list = list.filter(t => t.AssignerUsername === CURRENT_USER.Username);
+    if (scope === 'assigned_to_me') list = list.filter(t => t.AssigneeUsername === CURRENT_USER.Username);
+  }
   if (dept) list = list.filter(t => t.Department === dept);
   if (status) list = list.filter(t => t.Status === status);
   if (search) list = list.filter(t => (t.Title||'').toLowerCase().includes(search));
@@ -1263,6 +1268,7 @@ function openNewTask(parentTaskId){
   const deptSel = document.getElementById('ntDept');
   deptSel.innerHTML = DEPARTMENTS.map(dp => `<option value="${escapeHtml(dp)}">${escapeHtml(dp)}</option>`).join('');
   deptSel.value = parentTask ? parentTask.Department : (CURRENT_USER.Department || DEPARTMENTS[0]);
+  onAssigneeChangeSyncDept();
   document.getElementById('ntStart').value = new Date().toISOString().slice(0,10);
   const dueInput = document.getElementById('ntDue');
   dueInput.value = parentTask ? parentTask.DueDate : '';
@@ -1290,6 +1296,18 @@ function updateAssigneeOptions(){
   });
   if (list.some(u => u.Username === currentVal)) sel.value = currentVal;
   document.getElementById('ntAssigneeHint').classList.toggle('hidden', !isSupport);
+}
+
+// Khi đổi người nhận việc, tự chuyển "Phòng ban" sang đúng phòng ban của người đó (nếu có trong danh sách),
+// để không bị lệch phòng ban thật của người thực hiện. Vẫn cho sửa tay lại sau nếu cần.
+function onAssigneeChangeSyncDept(){
+  const username = document.getElementById('ntAssignee').value;
+  const u = USERS.find(x => x.Username === username);
+  if (!u || !u.Department) return;
+  const deptSel = document.getElementById('ntDept');
+  if ([...deptSel.options].some(o => o.value === u.Department)) {
+    deptSel.value = u.Department;
+  }
 }
 
 async function submitNewTask(){
