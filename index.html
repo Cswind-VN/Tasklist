@@ -861,8 +861,16 @@ function initials(name){
 function roleLabel(r){
   return {TGD:'Tổng Giám đốc', PhoTGD:'Phó Tổng Giám đốc', GiamDoc:'Giám đốc', TruongPhong:'Trưởng phòng'}[r] || r;
 }
+
+// Chuẩn hoá Username trước khi so sánh — Google Sheet chỉnh tay rất dễ dính khoảng trắng thừa
+// đầu/cuối hoặc khác hoa/thường (vd "Admin " so với "admin"), khiến so khớp tuyệt đối "==="
+// trượt dù nhìn bằng mắt giống hệt nhau. Toàn bộ so khớp Username trong App đi qua đây.
+function normUser(u){ return (u === null || u === undefined) ? '' : String(u).trim().toLowerCase(); }
+function sameUser(a, b){ const na = normUser(a), nb = normUser(b); return na !== '' && na === nb; }
+function findUserByUsername(username){ return USERS.find(x => sameUser(x.Username, username)); }
+
 function nameFor(username){
-  const u = USERS.find(x => x.Username === username);
+  const u = findUserByUsername(username);
   return u ? u.FullName : (username || '—');
 }
 
@@ -874,7 +882,7 @@ function getDescendants(username){
   const queue = [username];
   while(queue.length){
     const cur = queue.shift();
-    USERS.filter(u => u.ReportsTo === cur).forEach(u => {
+    USERS.filter(u => sameUser(u.ReportsTo, cur)).forEach(u => {
       result.push(u.Username);
       queue.push(u.Username);
     });
@@ -891,7 +899,7 @@ function getDescendantsLimited(username, maxDepth){
   for (let depth = 0; depth < maxDepth && frontier.length; depth++){
     const next = [];
     frontier.forEach(u => {
-      USERS.filter(x => x.ReportsTo === u).forEach(x => { result.push(x.Username); next.push(x.Username); });
+      USERS.filter(x => sameUser(x.ReportsTo, u)).forEach(x => { result.push(x.Username); next.push(x.Username); });
     });
     frontier = next;
   }
@@ -903,16 +911,16 @@ const VISIBILITY_DEPTH = 2; // cấp trên chỉ xem/giao việc được cho t�
 function visibleTasks(){
   if (CURRENT_USER.Role === 'TGD') return TASKS;
   const desc = getDescendantsLimited(CURRENT_USER.Username, VISIBILITY_DEPTH);
-  const scope = new Set([CURRENT_USER.Username, ...desc]);
-  return TASKS.filter(t => scope.has(t.AssignerUsername) || scope.has(t.AssigneeUsername));
+  const scope = [CURRENT_USER.Username, ...desc];
+  return TASKS.filter(t => scope.some(s => sameUser(s, t.AssignerUsername)) || scope.some(s => sameUser(s, t.AssigneeUsername)));
 }
 
 function isTaskVisible(t){
   if (!t) return false;
   if (CURRENT_USER.Role === 'TGD') return true;
   const desc = getDescendantsLimited(CURRENT_USER.Username, VISIBILITY_DEPTH);
-  const scope = new Set([CURRENT_USER.Username, ...desc]);
-  return scope.has(t.AssignerUsername) || scope.has(t.AssigneeUsername);
+  const scope = [CURRENT_USER.Username, ...desc];
+  return scope.some(s => sameUser(s, t.AssignerUsername)) || scope.some(s => sameUser(s, t.AssigneeUsername));
 }
 
 function assignableUsers(){
@@ -920,12 +928,12 @@ function assignableUsers(){
   // để ô "Giao cho" không mặc định chọn nhầm chính mình khi mở form — vẫn chọn tay được nếu cần.
   let others, self;
   if (CURRENT_USER.Role === 'TGD') {
-    others = USERS.filter(u => u.Username !== CURRENT_USER.Username);
+    others = USERS.filter(u => !sameUser(u.Username, CURRENT_USER.Username));
   } else {
     const desc = getDescendantsLimited(CURRENT_USER.Username, VISIBILITY_DEPTH);
-    others = USERS.filter(u => desc.includes(u.Username));
+    others = USERS.filter(u => desc.some(d => sameUser(d, u.Username)));
   }
-  self = USERS.find(u => u.Username === CURRENT_USER.Username);
+  self = findUserByUsername(CURRENT_USER.Username);
   return self ? [...others, self] : others;
 }
 
@@ -943,10 +951,10 @@ function filteredTasks(){
   if (person) {
     // Chọn 1 người cụ thể → ưu tiên hơn "Tôi giao/Tôi nhận", hiện toàn bộ việc của người đó
     // (cả việc họ giao lẫn việc họ nhận), tránh cộng dồn 2 bộ lọc gây rỗng kết quả vô lý.
-    list = list.filter(t => t.AssignerUsername === person || t.AssigneeUsername === person);
+    list = list.filter(t => sameUser(t.AssignerUsername, person) || sameUser(t.AssigneeUsername, person));
   } else {
-    if (scope === 'assigned_by_me') list = list.filter(t => t.AssignerUsername === CURRENT_USER.Username);
-    if (scope === 'assigned_to_me') list = list.filter(t => t.AssigneeUsername === CURRENT_USER.Username);
+    if (scope === 'assigned_by_me') list = list.filter(t => sameUser(t.AssignerUsername, CURRENT_USER.Username));
+    if (scope === 'assigned_to_me') list = list.filter(t => sameUser(t.AssigneeUsername, CURRENT_USER.Username));
   }
   if (dept) list = list.filter(t => t.Department === dept);
   if (status) list = list.filter(t => t.Status === status);
@@ -971,7 +979,7 @@ function populatePersonFilter(){
   USERS.filter(u => scopeUsernames.includes(u.Username)).forEach(u => {
     const o = document.createElement('option');
     o.value = u.Username;
-    o.textContent = u.FullName + (u.Username === CURRENT_USER.Username ? ' (Tôi)' : '') + ' — ' + roleLabel(u.Role);
+    o.textContent = u.FullName + (sameUser(u.Username, CURRENT_USER.Username) ? ' (Tôi)' : '') + ' — ' + roleLabel(u.Role);
     sel.appendChild(o);
   });
 }
@@ -1071,7 +1079,7 @@ function buildCard(t){
   const parentTag = t.ParentTaskID ? `<span class="support-tag">${linkTagLabel(t.LinkType) || 'Công việc nhánh'}</span>` : '';
   const kidsTag = kids.length ? `<span class="cnode-badge">⤷ ${kids.length} công việc nhánh · ${rollup}%</span>` : '';
   const isDone = t.Status === 'Hoàn thành';
-  const canApprove = isDone && !t.Approved && (t.AssignerUsername === CURRENT_USER.Username || CURRENT_USER.Role === 'TGD');
+  const canApprove = isDone && !t.Approved && (sameUser(t.AssignerUsername, CURRENT_USER.Username) || CURRENT_USER.Role === 'TGD');
   let approvalRow = '';
   if (isDone) {
     if (t.Approved) approvalRow = `<div style="margin-bottom:7px;"><span class="chip" style="background:#EAF3EC;color:var(--green);">✓ Đã duyệt</span></div>`;
@@ -1203,7 +1211,7 @@ const CASCADE_COLLAPSED = new Set();
 function renderCascade(){
   let scoped = visibleTasks(); // ignore text/status/dept filters here to keep chains intact
   const person = document.getElementById('fPerson').value;
-  if (person) scoped = scoped.filter(t => t.AssignerUsername === person || t.AssigneeUsername === person);
+  if (person) scoped = scoped.filter(t => sameUser(t.AssignerUsername, person) || sameUser(t.AssigneeUsername, person));
   const roots = scoped.filter(t => !t.ParentTaskID || !scoped.find(p => p.TaskID === t.ParentTaskID));
   const host = document.getElementById('cascadeBody');
   host.innerHTML = '';
@@ -1304,7 +1312,7 @@ function updateAssigneeOptions(){
     o.value = u.Username; o.textContent = u.FullName + ' — ' + roleLabel(u.Role);
     sel.appendChild(o);
   });
-  if (list.some(u => u.Username === currentVal)) sel.value = currentVal;
+  if (list.some(u => sameUser(u.Username, currentVal))) sel.value = currentVal;
   document.getElementById('ntAssigneeHint').classList.toggle('hidden', !isSupport);
 }
 
@@ -1312,7 +1320,7 @@ function updateAssigneeOptions(){
 // để không bị lệch phòng ban thật của người thực hiện. Vẫn cho sửa tay lại sau nếu cần.
 function onAssigneeChangeSyncDept(){
   const username = document.getElementById('ntAssignee').value;
-  const u = USERS.find(x => x.Username === username);
+  const u = findUserByUsername(username);
   if (!u || !u.Department) return;
   const deptSel = document.getElementById('ntDept');
   if ([...deptSel.options].some(o => o.value === u.Department)) {
@@ -1426,15 +1434,15 @@ async function openDetail(taskId){
   } else {
     subInfo.textContent = 'Chưa có công việc nhánh nào được phân tầng.';
   }
-  const canAddSubtask = assignableUsers().length > 0 && (t.AssignerUsername === CURRENT_USER.Username || t.AssigneeUsername === CURRENT_USER.Username || CURRENT_USER.Role === 'TGD');
+  const canAddSubtask = assignableUsers().length > 0 && (sameUser(t.AssignerUsername, CURRENT_USER.Username) || sameUser(t.AssigneeUsername, CURRENT_USER.Username) || CURRENT_USER.Role === 'TGD');
   document.getElementById('dAddSubtaskBtn').classList.toggle('hidden', !canAddSubtask);
 
-  const canEditProgress = (t.AssigneeUsername === CURRENT_USER.Username) || CURRENT_USER.Role === 'TGD' || t.AssignerUsername === CURRENT_USER.Username;
+  const canEditProgress = sameUser(t.AssigneeUsername, CURRENT_USER.Username) || CURRENT_USER.Role === 'TGD' || sameUser(t.AssignerUsername, CURRENT_USER.Username);
   document.getElementById('dProgress').disabled = !canEditProgress;
   document.getElementById('dStatus').disabled = !canEditProgress;
   document.getElementById('dNotes').disabled = !canEditProgress;
 
-  const canDelete = t.AssignerUsername === CURRENT_USER.Username || CURRENT_USER.Role === 'TGD';
+  const canDelete = sameUser(t.AssignerUsername, CURRENT_USER.Username) || CURRENT_USER.Role === 'TGD';
   document.getElementById('dDeleteBtn').classList.toggle('hidden', !canDelete);
 
   renderApprovalBox(t);
@@ -1447,7 +1455,7 @@ function renderApprovalBox(t){
   const box = document.getElementById('dApprovalBox');
   if (t.Status !== 'Hoàn thành') { box.classList.add('hidden'); return; }
   box.classList.remove('hidden');
-  const canApprove = !t.Approved && (t.AssignerUsername === CURRENT_USER.Username || CURRENT_USER.Role === 'TGD');
+  const canApprove = !t.Approved && (sameUser(t.AssignerUsername, CURRENT_USER.Username) || CURRENT_USER.Role === 'TGD');
   if (t.Approved) {
     box.style.background = '#EAF3EC';
     box.innerHTML = `<div style="font-size:12.5px;font-weight:700;color:var(--green);">✓ Đã duyệt hoàn thành${t.ApprovedBy?(' bởi '+escapeHtml(nameFor(t.ApprovedBy))):''}</div>`;
@@ -1550,13 +1558,13 @@ function renderUserMgmtLists(){
   const list = document.getElementById('userMgmtList');
   list.innerHTML = '';
   USERS.slice().sort((a,b) => ['TGD','PhoTGD','GiamDoc','TruongPhong'].indexOf(a.Role) - ['TGD','PhoTGD','GiamDoc','TruongPhong'].indexOf(b.Role)).forEach(u => {
-    const taskCount = TASKS.filter(t => t.AssignerUsername === u.Username || t.AssigneeUsername === u.Username).length;
-    const reportCount = USERS.filter(x => x.ReportsTo === u.Username).length;
+    const taskCount = TASKS.filter(t => sameUser(t.AssignerUsername, u.Username) || sameUser(t.AssigneeUsername, u.Username)).length;
+    const reportCount = USERS.filter(x => sameUser(x.ReportsTo, u.Username)).length;
     const row = document.createElement('div');
     row.className = 'lg-row';
     row.style.gridTemplateColumns = '2fr 1fr 110px';
     row.style.cursor = 'default';
-    const isSelf = u.Username === CURRENT_USER.Username;
+    const isSelf = sameUser(u.Username, CURRENT_USER.Username);
     row.innerHTML = `
       <div><div class="lg-title">${escapeHtml(u.FullName)} ${isSelf?'<span class="support-tag">Bạn</span>':''}</div><div class="lg-sub">${roleLabel(u.Role)} · ${escapeHtml(u.Department||'—')}${u.ReportsTo?(' · báo cáo: '+escapeHtml(nameFor(u.ReportsTo))):''}</div></div>
       <div style="font-size:11px;color:var(--ink-2);">${taskCount} việc${reportCount?`, ${reportCount} cấp dưới`:''}</div>
@@ -1635,7 +1643,7 @@ async function submitAddUser(){
 
 function openEditUserForm(username){
   if (!isAdmin()) return;
-  const u = USERS.find(x => x.Username === username);
+  const u = findUserByUsername(username);
   if (!u) return;
   document.getElementById('euUsername').value = u.Username;
   document.getElementById('euPassword').value = '';
@@ -1898,7 +1906,7 @@ function openEventDetail(eventId){
   document.getElementById('evType').value = e.Type;
   document.getElementById('evDesc').value = e.Description || '';
   document.getElementById('evMeta').textContent = 'Tạo bởi ' + nameFor(e.CreatedBy);
-  const canManage = e.CreatedBy === CURRENT_USER.Username || CURRENT_USER.Role === 'TGD';
+  const canManage = sameUser(e.CreatedBy, CURRENT_USER.Username) || CURRENT_USER.Role === 'TGD';
   document.getElementById('evDeleteBtn').classList.toggle('hidden', !canManage);
   document.getElementById('eventModal').classList.remove('hidden');
 }
