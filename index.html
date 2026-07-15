@@ -1201,7 +1201,9 @@ function renderGantt(tasks){
 const CASCADE_COLLAPSED = new Set();
 
 function renderCascade(){
-  const scoped = visibleTasks(); // ignore text/status/dept filters here to keep chains intact
+  let scoped = visibleTasks(); // ignore text/status/dept filters here to keep chains intact
+  const person = document.getElementById('fPerson').value;
+  if (person) scoped = scoped.filter(t => t.AssignerUsername === person || t.AssigneeUsername === person);
   const roots = scoped.filter(t => !t.ParentTaskID || !scoped.find(p => p.TaskID === t.ParentTaskID));
   const host = document.getElementById('cascadeBody');
   host.innerHTML = '';
